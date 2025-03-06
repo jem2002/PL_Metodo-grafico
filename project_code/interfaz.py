@@ -107,7 +107,7 @@ class App(ctk.CTk):
         
         restricciones = []
         for fila in self.filas_restricciones:
-            restriccion = fila.get_constraint()
+            restriccion = fila.obtener_restriccion()
             if restriccion is None:
                 self.text_output.insert(tk.END, "Error en los datos de alguna restricción.\n")
                 return
