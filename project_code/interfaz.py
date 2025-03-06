@@ -1,9 +1,9 @@
 import customtkinter as ctk
 import tkinter as tk
-from optimizacion import solve_optimization
-from grafica import plot_graph
+from optimizacion import resolver_optimizacion
+from grafica import dibujar_grafico
 
-class ConstraintRow(ctk.CTkFrame):
+class FilaDeRestricciones(ctk.CTkFrame):
     def __init__(self, master, **kwargs):
         super().__init__(master, **kwargs)
         self.entry_a = ctk.CTkEntry(self, width=50, placeholder_text="a")
@@ -16,13 +16,13 @@ class ConstraintRow(ctk.CTkFrame):
         self.dropdown = ctk.CTkOptionMenu(self, values=["<=", ">="], variable=self.var_ineq)
         self.dropdown.grid(row=0, column=3, padx=5, pady=5)
         
-    def get_constraint(self):
+    def obtener_restriccion(self):
         try:
             a = float(self.entry_a.get())
             b = float(self.entry_b.get())
             c = float(self.entry_c.get())
             ineq = self.var_ineq.get()
-            return {'a': a, 'b': b, 'c': c, 'inequality': ineq}
+            return {'a': a, 'b': b, 'c': c, 'inecuacion': ineq}
         except ValueError:
             return None
 
@@ -61,40 +61,40 @@ class App(ctk.CTk):
         self.label_constraints.pack(pady=5)
         
         self.frame_constraints = ctk.CTkFrame(self.frame_left)
-        self.frame_constraints.pack(pady=5, fill="x")
+        self.frame_constraints.pack(pady=5)
         
-        self.constraint_rows = []
-        self.add_constraint_row(default={'a': 1, 'b': 0, 'c': 0, 'inequality': '>='})
-        self.add_constraint_row(default={'a': 0, 'b': 1, 'c': 0, 'inequality': '>='})
+        self.filas_restricciones = []
+        self.añadir_fila_restriccion(default={'a': 1, 'b': 0, 'c': 0, 'inecuacion': '>='})
+        self.añadir_fila_restriccion(default={'a': 0, 'b': 1, 'c': 0, 'inecuacion': '>='})
         
-        self.button_add = ctk.CTkButton(self.frame_left, text="+ Añadir Restricción", command=self.add_constraint_row)
+        self.button_add = ctk.CTkButton(self.frame_left, text="+ Añadir Restricción", command=self.añadir_fila_restriccion)
         self.button_add.pack(pady=5)
         
-        self.button_remove = ctk.CTkButton(self.frame_left, text="- Eliminar Última Restricción", command=self.remove_constraint_row)
+        self.button_remove = ctk.CTkButton(self.frame_left, text="- Eliminar Última Restricción", command=self.remover_fila_restriccion)
         self.button_remove.pack(pady=5)
         
-        self.button_solve = ctk.CTkButton(self.frame_left, text="Resolver Optimización", command=self.solve)
+        self.button_solve = ctk.CTkButton(self.frame_left, text="Resolver Optimización", command=self.resolver)
         self.button_solve.pack(pady=10)
         
         self.text_output = ctk.CTkTextbox(self.frame_left, height=150)
         self.text_output.pack(pady=5, fill="both", expand=True)
         
-    def add_constraint_row(self, default=None):
-        row = ConstraintRow(self.frame_constraints)
-        row.pack(pady=2, fill="x")
+    def añadir_fila_restriccion(self, default=None):
+        fila = FilaDeRestricciones(self.frame_constraints)
+        fila.pack(pady=2, fill="x")
         if default:
-            row.entry_a.insert(0, str(default['a']))
-            row.entry_b.insert(0, str(default['b']))
-            row.entry_c.insert(0, str(default['c']))
-            row.var_ineq.set(default['inequality'])
-        self.constraint_rows.append(row)
+            fila.entry_a.insert(0, str(default['a']))
+            fila.entry_b.insert(0, str(default['b']))
+            fila.entry_c.insert(0, str(default['c']))
+            fila.var_ineq.set(default['inecuacion'])
+        self.filas_restricciones.append(fila)
         
-    def remove_constraint_row(self):
-        if self.constraint_rows:
-            row = self.constraint_rows.pop()
-            row.destroy()
+    def remover_fila_restriccion(self):
+        if self.filas_restricciones:
+            filas = self.filas_restricciones.pop()
+            filas.destroy()
         
-    def solve(self):
+    def resolver(self):
         self.text_output.delete("1.0", tk.END)
         
         try:
@@ -103,20 +103,20 @@ class App(ctk.CTk):
         except ValueError:
             self.text_output.insert(tk.END, "Error en los coeficientes de la función objetivo.\n")
             return
-        objective = {'coeff': [a_obj, b_obj], 'type': self.var_obj_type.get()}
+        objetivo = {'coeff': [a_obj, b_obj], 'type': self.var_obj_type.get()}
         
         restricciones = []
-        for row in self.constraint_rows:
-            constraint = row.get_constraint()
-            if constraint is None:
+        for fila in self.filas_restricciones:
+            restriccion = fila.get_constraint()
+            if restriccion is None:
                 self.text_output.insert(tk.END, "Error en los datos de alguna restricción.\n")
                 return
-            restricciones.append(constraint)
+            restricciones.append(restriccion)
         
-        result, message, feasible_points = solve_optimization(objective, restricciones)
-        self.text_output.insert(tk.END, message + "\n")
+        resultado, mensaje, puntos_factibles = resolver_optimizacion(objetivo, restricciones)
+        self.text_output.insert(tk.END, mensaje + "\n")
         
-        if result is None:
+        if resultado is None:
             return
         
-        plot_graph(objective, restricciones, feasible_points, result['optimal_point'], self.frame_right)
+        dibujar_grafico(restricciones, puntos_factibles, resultado['punto_optimo'], self.frame_right)
