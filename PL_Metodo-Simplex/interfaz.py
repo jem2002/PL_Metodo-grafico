@@ -15,11 +15,15 @@ class FilaDeRestricciones(ctk.CTkFrame):
             entry = ctk.CTkEntry(self, width=50, placeholder_text=f"a{i+1}")
             entry.grid(row=0, column=i, padx=5, pady=5)
             self.entries_a.append(entry)
-        self.entry_c = ctk.CTkEntry(self, width=50, placeholder_text="c")
-        self.entry_c.grid(row=0, column=n_variables, padx=5, pady=5)
+        
+        # Selector de desigualdad antes del input c
         self.var_ineq = ctk.StringVar(value="<=")
-        self.dropdown = ctk.CTkOptionMenu(self, values=["<=", ">="], variable=self.var_ineq)
-        self.dropdown.grid(row=0, column=n_variables+1, padx=5, pady=5)
+        self.dropdown = ctk.CTkOptionMenu(self, values=["<="], variable=self.var_ineq, width=70)
+        self.dropdown.grid(row=0, column=n_variables, padx=5, pady=5)
+        
+        # Input c después del selector de desigualdad
+        self.entry_c = ctk.CTkEntry(self, width=50, placeholder_text="c")
+        self.entry_c.grid(row=0, column=n_variables+1, padx=5, pady=5)
         
     def obtener_restriccion(self):
         try:
@@ -33,15 +37,17 @@ class FilaDeRestricciones(ctk.CTkFrame):
 class App(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("Optimización Lineal - GUI")
+        self.title("Método Simplex")
         self.geometry("1000x600")
         
+        # Configurar las columnas
         self.columnconfigure(0, weight=1)
-        self.columnconfigure(1, weight=2)
+        self.columnconfigure(1, weight=2) 
         self.rowconfigure(0, weight=1)
         
+        # Frame izquierdo
         self.frame_left = ctk.CTkFrame(self, width=300)
-        self.frame_left.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")
+        self.frame_left.grid(row=0, column=0, padx=10, pady=10, sticky="nsew")  # Se expande en todas direcciones
 
         self.modo_entrada = ctk.StringVar(value="manual")
         self.optionmenu_modo = ctk.CTkOptionMenu(
@@ -61,13 +67,16 @@ class App(ctk.CTk):
         self.frame_texto = ctk.CTkFrame(self.contenedor_modos)
         self.construir_modo_texto()
         
+        # Frame derecho que ocupa el espacio restante
         self.frame_right = ctk.CTkFrame(self)
-        self.frame_right.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")
+        self.frame_right.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")  # Se expande en todas las direcciones
 
+        # Inicializar el número de variables
+        self.n_variables = 0  # Valor predeterminado
         self.cambiar_modo()
 
     def construir_modo_manual(self):
-        self.label_n_variables = ctk.CTkLabel(self.frame_left, text="Número de Variables de Decisión")
+        self.label_n_variables = ctk.CTkLabel(self.frame_left, text="Número de Variables de Decisión", anchor="w")
         self.label_n_variables.pack(pady=5)
         
         self.entry_n_variables = ctk.CTkEntry(self.frame_left, width=50, placeholder_text="n")
@@ -79,20 +88,24 @@ class App(ctk.CTk):
         self.label_obj = ctk.CTkLabel(self.frame_left, text="Función Objetivo (Z = a1x1 + a2x2 + ... + anxn)")
         self.label_obj.pack(pady=5)
         
-        self.frame_obj = ctk.CTkFrame(self.frame_left)
+        self.frame_obj = ctk.CTkFrame(self.frame_left, height=30)
         self.frame_obj.pack(pady=5)
         
         self.entries_obj = []
         
         self.var_obj_type = ctk.StringVar(value="max")
-        self.dropdown_obj_type = ctk.CTkOptionMenu(self.frame_left, values=["max", "min"], variable=self.var_obj_type)
+        self.dropdown_obj_type = ctk.CTkOptionMenu(self.frame_left, values=["max", "min"], variable=self.var_obj_type, width=80)
         self.dropdown_obj_type.pack(pady=5)
         
         self.label_constraints = ctk.CTkLabel(self.frame_left, text="Restricciones (inecuaciones)")
         self.label_constraints.pack(pady=5)
         
-        self.frame_constraints = ctk.CTkFrame(self.frame_left)
-        self.frame_constraints.pack(pady=5)
+        # Contenedor scrollable para las restricciones
+        self.scrollable_frame = ctk.CTkScrollableFrame(self.frame_left, height=150)
+        self.scrollable_frame.pack(pady=5, fill="both", expand=True)
+        
+        self.frame_constraints = ctk.CTkFrame(self.scrollable_frame)
+        self.frame_constraints.pack(fill="both", expand=True)
         
         self.filas_restricciones = []
         
@@ -132,7 +145,7 @@ class App(ctk.CTk):
     def construir_modo_texto(self):
         self.texto_problema = ctk.CTkTextbox(
             self.frame_texto, 
-            height=200,
+            height=100,
             wrap=tk.WORD
         )
         self.texto_problema.pack(pady=10, fill="both", expand=True)
@@ -236,8 +249,12 @@ class App(ctk.CTk):
             self.añadir_fila_restriccion(default=restriccion)
         
     def añadir_fila_restriccion(self, default=None):
+        if not hasattr(self, 'n_variables') or self.n_variables == 0:
+            self.text_output.insert(tk.END, "Error: Establece el número de variables primero.\n")
+            return
+        
         fila = FilaDeRestricciones(self.frame_constraints, self.n_variables)
-        fila.pack(pady=2, fill="x")
+        fila.pack(pady=2)
         if default:
             for i, a in enumerate(default['a']):
                 fila.entries_a[i].insert(0, str(a))
@@ -268,6 +285,7 @@ class App(ctk.CTk):
                 return
             restricciones.append(restriccion)
         
+        # Resolver el problema usando el método simplex
         resultado, mensaje, puntos_factibles = resolver_optimizacion(objetivo, restricciones)
         self.text_output.insert(tk.END, mensaje + "\n")
         

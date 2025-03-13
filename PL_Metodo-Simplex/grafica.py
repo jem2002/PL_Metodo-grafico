@@ -28,9 +28,11 @@ def dibujar_grafico(restricciones, puntos_factibles, punto_optimo, container):
 def _dibujar_grafico_2d(restricciones, puntos_factibles, punto_optimo, container):
     fig, ax = plt.subplots(figsize=(5, 4), dpi=100)
     
+    # Calcular límites del gráfico
     x_max = max([p[0] for p in puntos_factibles]) + 2 if puntos_factibles else 10
     y_max = max([p[1] for p in puntos_factibles]) + 2 if puntos_factibles else 10
     
+    # Graficar restricciones
     for r in restricciones:
         a, b, c = r['a'][0], r['a'][1], r['c']
         ineq = r['inecuacion']
@@ -61,22 +63,28 @@ def _dibujar_grafico_2d(restricciones, puntos_factibles, punto_optimo, container
             else:
                 ax.fill_between(x_vals, y_vals, 10, alpha=0.1)
     
+    # Graficar región factible
     if len(puntos_factibles) >= 3:
         centroid = (np.mean([p[0] for p in puntos_factibles]), np.mean([p[1] for p in puntos_factibles]))
         sorted_points = sorted(puntos_factibles, key=lambda p: np.arctan2(p[1]-centroid[1], p[0]-centroid[0]))
         polygon = np.array(sorted_points)
         ax.fill(polygon[:,0], polygon[:,1], color='gray', alpha=0.3, label='Región Factible')
     
+    # Graficar puntos factibles
     if puntos_factibles:
         ax.scatter(*zip(*puntos_factibles), color='red', zorder=5)
-    ax.scatter(punto_optimo[0], punto_optimo[1], color='green', marker='*', s=200, label='Solución Óptima')
+    
+    # Graficar solución óptima
+    if punto_optimo is not None:
+        ax.scatter(punto_optimo[0], punto_optimo[1], color='green', marker='*', s=200, label='Solución Óptima')
     
     ax.set_xlabel('x')
     ax.set_ylabel('y')
-    ax.set_title('Método Gráfico para Programación Lineal (2D)')
+    ax.set_title('Método Simplex')
     ax.legend()
     ax.grid(True)
     
+    # Limpiar el contenedor y mostrar la gráfica
     for widget in container.winfo_children():
         widget.destroy()
     canvas = FigureCanvasTkAgg(fig, master=container)
@@ -87,6 +95,7 @@ def _dibujar_grafico_3d(restricciones, puntos_factibles, punto_optimo, container
     fig = plt.figure(figsize=(5, 4), dpi=100)
     ax = fig.add_subplot(111, projection='3d')
     
+    # Calcular límites del gráfico
     x_max = max([p[0] for p in puntos_factibles]) + 2 if puntos_factibles else 10
     y_max = max([p[1] for p in puntos_factibles]) + 2 if puntos_factibles else 10
     z_max = max([p[2] for p in puntos_factibles]) + 2 if puntos_factibles else 10
@@ -107,14 +116,16 @@ def _dibujar_grafico_3d(restricciones, puntos_factibles, punto_optimo, container
         ax.scatter(*zip(*puntos_factibles), color='red', zorder=5)
     
     # Graficar solución óptima
-    ax.scatter(punto_optimo[0], punto_optimo[1], punto_optimo[2], color='green', marker='*', s=200, label='Solución Óptima')
+    if punto_optimo is not None:
+        ax.scatter(punto_optimo[0], punto_optimo[1], punto_optimo[2], color='green', marker='*', s=200, label='Solución Óptima')
     
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
-    ax.set_title('Método Gráfico para Programación Lineal (3D)')
+    ax.set_title('Método Simplex')
     ax.legend()
     
+    # Limpiar el contenedor y mostrar la gráfica
     for widget in container.winfo_children():
         widget.destroy()
     canvas = FigureCanvasTkAgg(fig, master=container)
