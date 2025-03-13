@@ -14,7 +14,7 @@ def encontrar_interseccion(restricciones):
     
     try:
         x = np.linalg.solve(A, b)
-        return tuple(x)
+        return tuple(float(round(val, 2)) for val in x)  # Redondear a 2 decimales
     except np.linalg.LinAlgError:
         return None  # No hay solución única o sistema incompatible
 
@@ -38,7 +38,10 @@ def inicializar_tabla_simplex(objetivo, restricciones):
     n_restricciones = len(restricciones)
     
     # Coeficientes de la función objetivo (multiplicados por -1 para maximizar)
-    c = np.array([-coeff for coeff in objetivo['coeff']])
+    if objetivo['type'] == 'max':
+        c = np.array([-coeff for coeff in objetivo['coeff']])
+    else:  # minimización
+        c = np.array(objetivo['coeff'])
     
     # Matriz de coeficientes de las restricciones
     A = np.array([r['a'] for r in restricciones])
@@ -109,6 +112,10 @@ def resolver_simplex(objetivo, restricciones):
     
     valor_optimo = tabla[-1, -1]
     
+    # Convertir y redondear la solución a tipos nativos de Python
+    solucion = [float(round(x, 2)) for x in solucion]  # Redondear a 2 decimales
+    valor_optimo = float(round(valor_optimo, 2))  # Redondear a 2 decimales
+    
     return solucion, valor_optimo
 
 def resolver_optimizacion(objetivo, restricciones):
@@ -118,6 +125,12 @@ def resolver_optimizacion(objetivo, restricciones):
     try:
         # Resolver usando simplex
         solucion, valor_optimo = resolver_simplex(objetivo, restricciones)
+        
+        # Verificar si la solución es un vector de ceros
+        if all(abs(x) < 1e-9 for x in solucion):
+            print("Advertencia: La solución óptima es un vector de ceros. Descartando esta solución.")
+            solucion = None
+            valor_optimo = None
         
         # Calcular puntos factibles (intersecciones de restricciones)
         n_variables = len(objetivo['coeff'])
@@ -131,11 +144,28 @@ def resolver_optimizacion(objetivo, restricciones):
         
         # Filtrar puntos factibles
         puntos_factibles = [p for p in intersecciones if es_factible(p, restricciones)]
-        puntos_factibles = list(set([tuple(round(coord, 3) for coord in p) for p in puntos_factibles]))
+        puntos_factibles = list(set([tuple(float(round(coord, 2)) for coord in p) for p in puntos_factibles]))
+        
+        # Si la solución simplex es un vector de ceros, buscar la mejor solución entre los puntos factibles
+        if solucion is None and puntos_factibles:
+            mejor_punto = None
+            mejor_valor = np.inf if objetivo['type'] == 'min' else -np.inf
+            
+            for punto in puntos_factibles:
+                valor = sum(objetivo['coeff'][i] * punto[i] for i in range(n_variables))
+                if (objetivo['type'] == 'min' and valor < mejor_valor) or (objetivo['type'] == 'max' and valor > mejor_valor):
+                    mejor_punto = punto
+                    mejor_valor = valor
+            
+            solucion = [float(round(x, 2)) for x in mejor_punto]  # Redondear a 2 decimales
+            valor_optimo = float(round(mejor_valor, 2))  # Redondear a 2 decimales
         
         # Mensaje de salida
-        mensaje = (f"Solución óptima: {solucion}\n"
-                   f"Valor óptimo: {valor_optimo:.2f}")
+        if solucion is not None:
+            mensaje = (f"Solución óptima: {tuple(solucion)}\n"
+                       f"Valor óptimo: {valor_optimo:.2f}")
+        else:
+            mensaje = "No se encontró una solución óptima válida."
         
         return {'punto_optimo': solucion, 'valor_optimo': valor_optimo}, mensaje, puntos_factibles
     

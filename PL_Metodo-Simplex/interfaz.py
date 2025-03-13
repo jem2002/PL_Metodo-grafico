@@ -101,7 +101,7 @@ class App(ctk.CTk):
         self.label_constraints.pack(pady=5)
         
         # Contenedor scrollable para las restricciones
-        self.scrollable_frame = ctk.CTkScrollableFrame(self.frame_left, height=150)
+        self.scrollable_frame = ctk.CTkScrollableFrame(self.frame_left, height=60)  # Altura inicial de 60
         self.scrollable_frame.pack(pady=5, fill="both", expand=True)
         
         self.frame_constraints = ctk.CTkFrame(self.scrollable_frame)
@@ -109,16 +109,20 @@ class App(ctk.CTk):
         
         self.filas_restricciones = []
         
-        self.button_add = ctk.CTkButton(self.frame_left, text="+ Añadir Restricción", command=self.añadir_fila_restriccion)
-        self.button_add.pack(pady=5)
+        # Frame para contener los botones de añadir y eliminar
+        self.frame_botones = ctk.CTkFrame(self.frame_left)
+        self.frame_botones.pack(pady=5, fill="x")
         
-        self.button_remove = ctk.CTkButton(self.frame_left, text="- Eliminar Última Restricción", command=self.remover_fila_restriccion)
-        self.button_remove.pack(pady=5)
+        self.button_add = ctk.CTkButton(self.frame_botones, text="+ Añadir Restricción", command=self.añadir_fila_restriccion)
+        self.button_add.pack(side="left", padx=5, pady=5, fill="x", expand=True)
+        
+        self.button_remove = ctk.CTkButton(self.frame_botones, text="- Eliminar Última Restricción", command=self.remover_fila_restriccion)
+        self.button_remove.pack(side="left", padx=5, pady=5, fill="x", expand=True)
         
         self.button_solve = ctk.CTkButton(self.frame_left, text="Resolver Optimización", command=self.resolver)
-        self.button_solve.pack(pady=10)
+        self.button_solve.pack(pady=10, fill="x")
         
-        self.text_output = ctk.CTkTextbox(self.frame_left, height=150)
+        self.text_output = ctk.CTkTextbox(self.frame_left, height=40)
         self.text_output.pack(pady=5, fill="both", expand=True)
 
     def establecer_n_variables(self):
