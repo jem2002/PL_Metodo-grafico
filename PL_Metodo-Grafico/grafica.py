@@ -21,20 +21,31 @@ def dibujar_grafico(restricciones, puntos_factibles, punto_optimo, container):
         a, b, c = r['a'], r['b'], r['c']
         ineq = r['inecuacion']
         x_vals = np.linspace(0, x_max, 400)
-        if b != 0:
-            y_vals = (c - a * x_vals) / b
-            ax.plot(x_vals, y_vals, label=f'{a}x + {b}y {ineq} {c}')
-            if es_factible(0, 0, [r]):
-                ax.fill_between(x_vals, y_vals, -10, alpha=0.1)
+        
+        if a == 0:
+            # Caso cuando a = 0 (línea horizontal)
+            y_line = c / b
+            ax.axhline(y=y_line, label=f'{b}y {ineq} {c}')
+            if ineq == '<=':
+                ax.fill_between(x_vals, y_line, -10, alpha=0.1)
             else:
-                ax.fill_between(x_vals, y_vals, 10, alpha=0.1)
-        else:
+                ax.fill_between(x_vals, y_line, 10, alpha=0.1)
+        elif b == 0:
+            # Caso cuando b = 0 (línea vertical)
             x_line = c / a
             ax.axvline(x=x_line, label=f'x {ineq} {c/a:.2f}')
             if ineq == '<=':
                 ax.fill_betweenx(y=np.linspace(0, y_max, 400), x1=x_line, x2=-10, alpha=0.1)
             else:
                 ax.fill_betweenx(y=np.linspace(0, y_max, 400), x1=x_line, x2=10, alpha=0.1)
+        else:
+            # Caso general (línea inclinada)
+            y_vals = (c - a * x_vals) / b
+            ax.plot(x_vals, y_vals, label=f'{a}x + {b}y {ineq} {c}')
+            if es_factible(0, 0, [r]):
+                ax.fill_between(x_vals, y_vals, -10, alpha=0.1)
+            else:
+                ax.fill_between(x_vals, y_vals, 10, alpha=0.1)
     
     if len(puntos_factibles) >= 3:
         centroid = (np.mean([p[0] for p in puntos_factibles]), np.mean([p[1] for p in puntos_factibles]))

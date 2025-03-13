@@ -7,25 +7,26 @@ from optimizacion import resolver_optimizacion
 from grafica import dibujar_grafico
 
 class FilaDeRestricciones(ctk.CTkFrame):
-    def __init__(self, master, **kwargs):
+    def __init__(self, master, n_variables, **kwargs):
         super().__init__(master, **kwargs)
-        self.entry_a = ctk.CTkEntry(self, width=50, placeholder_text="a")
-        self.entry_a.grid(row=0, column=0, padx=5, pady=5)
-        self.entry_b = ctk.CTkEntry(self, width=50, placeholder_text="b")
-        self.entry_b.grid(row=0, column=1, padx=5, pady=5)
+        self.n_variables = n_variables
+        self.entries_a = []
+        for i in range(n_variables):
+            entry = ctk.CTkEntry(self, width=50, placeholder_text=f"a{i+1}")
+            entry.grid(row=0, column=i, padx=5, pady=5)
+            self.entries_a.append(entry)
         self.entry_c = ctk.CTkEntry(self, width=50, placeholder_text="c")
-        self.entry_c.grid(row=0, column=2, padx=5, pady=5)
+        self.entry_c.grid(row=0, column=n_variables, padx=5, pady=5)
         self.var_ineq = ctk.StringVar(value="<=")
         self.dropdown = ctk.CTkOptionMenu(self, values=["<=", ">="], variable=self.var_ineq)
-        self.dropdown.grid(row=0, column=3, padx=5, pady=5)
+        self.dropdown.grid(row=0, column=n_variables+1, padx=5, pady=5)
         
     def obtener_restriccion(self):
         try:
-            a = float(self.entry_a.get())
-            b = float(self.entry_b.get())
+            a = [float(entry.get()) for entry in self.entries_a]
             c = float(self.entry_c.get())
             ineq = self.var_ineq.get()
-            return {'a': a, 'b': b, 'c': c, 'inecuacion': ineq}
+            return {'a': a, 'c': c, 'inecuacion': ineq}
         except ValueError:
             return None
 
@@ -66,20 +67,26 @@ class App(ctk.CTk):
         self.cambiar_modo()
 
     def construir_modo_manual(self):
-        self.label_obj = ctk.CTkLabel(self.frame_left, text="Función Objetivo (Z = ax + by)")
+        self.label_n_variables = ctk.CTkLabel(self.frame_left, text="Número de Variables de Decisión")
+        self.label_n_variables.pack(pady=5)
+        
+        self.entry_n_variables = ctk.CTkEntry(self.frame_left, width=50, placeholder_text="n")
+        self.entry_n_variables.pack(pady=5)
+        
+        self.button_set_n = ctk.CTkButton(self.frame_left, text="Establecer Número de Variables", command=self.establecer_n_variables)
+        self.button_set_n.pack(pady=5)
+        
+        self.label_obj = ctk.CTkLabel(self.frame_left, text="Función Objetivo (Z = a1x1 + a2x2 + ... + anxn)")
         self.label_obj.pack(pady=5)
         
         self.frame_obj = ctk.CTkFrame(self.frame_left)
         self.frame_obj.pack(pady=5)
         
-        self.entry_obj_a = ctk.CTkEntry(self.frame_obj, width=50, placeholder_text="a")
-        self.entry_obj_a.grid(row=0, column=0, padx=5, pady=5)
-        self.entry_obj_b = ctk.CTkEntry(self.frame_obj, width=50, placeholder_text="b")
-        self.entry_obj_b.grid(row=0, column=1, padx=5, pady=5)
+        self.entries_obj = []
         
         self.var_obj_type = ctk.StringVar(value="max")
-        self.dropdown_obj_type = ctk.CTkOptionMenu(self.frame_obj, values=["max", "min"], variable=self.var_obj_type)
-        self.dropdown_obj_type.grid(row=0, column=2, padx=5, pady=5)
+        self.dropdown_obj_type = ctk.CTkOptionMenu(self.frame_left, values=["max", "min"], variable=self.var_obj_type)
+        self.dropdown_obj_type.pack(pady=5)
         
         self.label_constraints = ctk.CTkLabel(self.frame_left, text="Restricciones (inecuaciones)")
         self.label_constraints.pack(pady=5)
@@ -88,8 +95,6 @@ class App(ctk.CTk):
         self.frame_constraints.pack(pady=5)
         
         self.filas_restricciones = []
-        self.añadir_fila_restriccion(default={'a': 1, 'b': 0, 'c': 0, 'inecuacion': '>='})
-        self.añadir_fila_restriccion(default={'a': 0, 'b': 1, 'c': 0, 'inecuacion': '>='})
         
         self.button_add = ctk.CTkButton(self.frame_left, text="+ Añadir Restricción", command=self.añadir_fila_restriccion)
         self.button_add.pack(pady=5)
@@ -102,6 +107,27 @@ class App(ctk.CTk):
         
         self.text_output = ctk.CTkTextbox(self.frame_left, height=150)
         self.text_output.pack(pady=5, fill="both", expand=True)
+
+    def establecer_n_variables(self):
+        try:
+            self.n_variables = int(self.entry_n_variables.get())
+            if self.n_variables < 1:
+                raise ValueError("El número de variables debe ser al menos 1")
+            self.actualizar_entradas_objetivo()
+            self.text_output.insert(tk.END, f"Número de variables establecido en {self.n_variables}\n")
+        except ValueError as e:
+            self.text_output.insert(tk.END, f"Error: {str(e)}\n")
+
+    def actualizar_entradas_objetivo(self):
+        for widget in self.frame_obj.winfo_children():
+            widget.destroy()
+        self.entries_obj = []
+        for i in range(self.n_variables):
+            label = ctk.CTkLabel(self.frame_obj, text=f"a{i+1}:")
+            label.grid(row=0, column=i*2, padx=5, pady=5)
+            entry = ctk.CTkEntry(self.frame_obj, width=50)
+            entry.grid(row=0, column=i*2+1, padx=5, pady=5)
+            self.entries_obj.append(entry)
 
     def construir_modo_texto(self):
         self.texto_problema = ctk.CTkTextbox(
@@ -137,6 +163,7 @@ class App(ctk.CTk):
             if not resultado:
                 raise ValueError("Error en la respuesta de la API")
             
+            print(resultado)
             self.actualizar_datos_interfaz(resultado)
             self.modo_entrada.set("Modo Manual")
             self.text_output.insert(tk.END, "Datos cargados exitosamente desde el texto\n")
@@ -153,18 +180,17 @@ class App(ctk.CTk):
         genai.configure(api_key=api_key)
 
         prompt = f"""
-        Transforma el siguiente problema de programación lineal en formato JSON. 
+        Analiza y transforma el siguiente problema de programación lineal en formato JSON. 
         Usa exactamente este formato:
         
         {{
             "objetivo": {{
-                "coeff": [a, b],
+                "coeff": [a1, a2, ..., an],
                 "type": "max|min"
             }},
             "restricciones": [
                 {{
-                    "a": número,
-                    "b": número,
+                    "a": [a1, a2, ..., an],
                     "c": número,
                     "inecuacion": "<="|">="
                 }}
@@ -172,17 +198,18 @@ class App(ctk.CTk):
         }}
         
         Considera que:
-        - Variables son siempre x e y
+        - Variables son x1, x2, ..., xn
         - Inecuaciones pueden estar en cualquier orden
         - Ignora restricciones redundantes
-        - Asegúrate de incluir x >= 0 y y >= 0 si son necesarias
+        - Ignora restricciones en las que todos los coeficientes sean cero
+        - Verifica cada restriccion antes de enviar la respuesta
         
         Problema:
         {texto}
         """
         
         try:
-            model = genai.GenerativeModel('gemini-pro')
+            model = genai.GenerativeModel('gemini-1.5-pro')
             response = model.generate_content(prompt)
             
             json_str = response.text.replace('```json', '').replace('```', '').strip()
@@ -192,25 +219,28 @@ class App(ctk.CTk):
             raise ValueError(f"Error en Gemini: {str(e)}")
     
     def actualizar_datos_interfaz(self, datos):
-        self.entry_obj_a.delete(0, tk.END)
-        self.entry_obj_b.delete(0, tk.END)
-        while self.filas_restricciones:
-            self.remover_fila_restriccion()
+        self.entry_n_variables.delete(0, tk.END)
+        self.entry_n_variables.insert(0, str(len(datos.get("objetivo", {}).get("coeff", []))))
+        self.establecer_n_variables()
         
         objetivo = datos.get("objetivo", {})
-        self.entry_obj_a.insert(0, str(objetivo.get("coeff", [0, 0])[0]))
-        self.entry_obj_b.insert(0, str(objetivo.get("coeff", [0, 0])[1]))
+        for i, coeff in enumerate(objetivo.get("coeff", [])):
+            self.entries_obj[i].delete(0, tk.END)
+            self.entries_obj[i].insert(0, str(coeff))
         self.var_obj_type.set(objetivo.get("type", "max"))
+        
+        while self.filas_restricciones:
+            self.remover_fila_restriccion()
         
         for restriccion in datos.get("restricciones", []):
             self.añadir_fila_restriccion(default=restriccion)
         
     def añadir_fila_restriccion(self, default=None):
-        fila = FilaDeRestricciones(self.frame_constraints)
+        fila = FilaDeRestricciones(self.frame_constraints, self.n_variables)
         fila.pack(pady=2, fill="x")
         if default:
-            fila.entry_a.insert(0, str(default['a']))
-            fila.entry_b.insert(0, str(default['b']))
+            for i, a in enumerate(default['a']):
+                fila.entries_a[i].insert(0, str(a))
             fila.entry_c.insert(0, str(default['c']))
             fila.var_ineq.set(default['inecuacion'])
         self.filas_restricciones.append(fila)
@@ -224,12 +254,11 @@ class App(ctk.CTk):
         self.text_output.delete("1.0", tk.END)
         
         try:
-            a_obj = float(self.entry_obj_a.get())
-            b_obj = float(self.entry_obj_b.get())
+            coeff_obj = [float(entry.get()) for entry in self.entries_obj]
         except ValueError:
             self.text_output.insert(tk.END, "Error en los coeficientes de la función objetivo.\n")
             return
-        objetivo = {'coeff': [a_obj, b_obj], 'type': self.var_obj_type.get()}
+        objetivo = {'coeff': coeff_obj, 'type': self.var_obj_type.get()}
         
         restricciones = []
         for fila in self.filas_restricciones:
