@@ -5,6 +5,48 @@ import os
 import google.generativeai as genai
 from optimizacion import resolver_optimizacion
 from grafica import dibujar_grafico
+import re
+import ast
+import operator as op
+
+# Operadores permitidos para la evaluación segura
+operadores_permitidos = {
+    ast.Add: op.add,
+    ast.Sub: op.sub,
+    ast.Mult: op.mul,
+    ast.Div: op.truediv,
+    ast.Pow: op.pow,
+    ast.BitXor: op.xor,
+    ast.USub: op.neg,
+}
+
+def evaluar_expresion_segura(expr):
+    """
+    Evalúa una expresión matemática de manera segura.
+    Solo permite números y operaciones básicas.
+    """
+    def _evaluar_nodo(nodo):
+        if isinstance(nodo, ast.Expression):
+            return _evaluar_nodo(nodo.body)
+        elif isinstance(nodo, ast.Constant):  # Python 3.8+
+            return nodo.value
+        elif isinstance(nodo, ast.Num):  # Python < 3.8
+            return nodo.n
+        elif isinstance(nodo, ast.BinOp):
+            return operadores_permitidos[type(nodo.op)](
+                _evaluar_nodo(nodo.left), _evaluar_nodo(nodo.right)
+            )
+        elif isinstance(nodo, ast.UnaryOp):
+            return operadores_permitidos[type(nodo.op)](_evaluar_nodo(nodo.operand))
+        else:
+            raise ValueError(f"Operación no permitida: {type(nodo).__name__}")
+    
+    try:
+        # Parsear la expresión en un árbol de sintaxis abstracta (AST)
+        arbol = ast.parse(expr, mode='eval')
+        return _evaluar_nodo(arbol.body)
+    except (SyntaxError, ValueError, TypeError):
+        raise ValueError(f"Expresión no válida: {expr}")
 
 class FilaDeRestricciones(ctk.CTkFrame):
     def __init__(self, master, n_variables, **kwargs):
@@ -27,11 +69,14 @@ class FilaDeRestricciones(ctk.CTkFrame):
         
     def obtener_restriccion(self):
         try:
-            a = [float(entry.get()) for entry in self.entries_a]
-            c = float(self.entry_c.get())
+            # Evaluar los coeficientes a
+            a = [evaluar_expresion_segura(entry.get()) for entry in self.entries_a]
+            # Evaluar el término independiente c
+            c = evaluar_expresion_segura(self.entry_c.get())
             ineq = self.var_ineq.get()
             return {'a': a, 'c': c, 'inecuacion': ineq}
-        except ValueError:
+        except ValueError as e:
+            print(f"Error al evaluar la expresión: {e}")
             return None
 
 class App(ctk.CTk):
@@ -70,6 +115,13 @@ class App(ctk.CTk):
         # Frame derecho que ocupa el espacio restante
         self.frame_right = ctk.CTkFrame(self)
         self.frame_right.grid(row=0, column=1, padx=10, pady=10, sticky="nsew")  # Se expande en todas las direcciones
+
+        # Dividir el frame_right en dos partes
+        self.frame_top = ctk.CTkFrame(self.frame_right, height=300)
+        self.frame_top.pack(fill="both", expand=True)
+
+        self.frame_bottom = ctk.CTkFrame(self.frame_right, height=300)
+        self.frame_bottom.pack(fill="both", expand=True)
 
         # Inicializar el número de variables
         self.n_variables = 0  # Valor predeterminado
@@ -177,33 +229,31 @@ class App(ctk.CTk):
         
         try:
             resultado = self.llamar_api_ia(texto)
-            if not resultado:
-                raise ValueError("Error en la respuesta de la API")
-            
-            print(resultado)
             self.actualizar_datos_interfaz(resultado)
             self.modo_entrada.set("Modo Manual")
-            self.text_output.insert(tk.END, "Datos cargados exitosamente desde el texto\n")
+            self.text_output.insert(tk.END, "Datos cargados exitosamente\n")
             
+        except json.JSONDecodeError:
+            self.text_output.insert(tk.END, "Error: Formato JSON inválido en la respuesta\n")
+        except KeyError as e:
+            self.text_output.insert(tk.END, f"Error: Faltan datos en la respuesta - {str(e)}\n")
         except Exception as e:
             self.text_output.insert(tk.END, f"Error: {str(e)}\n")
-    
+
     def llamar_api_ia(self, texto):
         api_key = os.getenv("GOOGLE_API_KEY")
-
         if not api_key:
             raise ValueError("API key no configurada. Establece GOOGLE_API_KEY en tus variables de entorno")
         
         genai.configure(api_key=api_key)
 
         prompt = f"""
-        Analiza y transforma el siguiente problema de programación lineal en formato JSON. 
-        Usa exactamente este formato:
+        Transforma el siguiente problema de programación lineal a formato JSON estricto usando EXACTAMENTE esta estructura:
         
         {{
             "objetivo": {{
                 "coeff": [a1, a2, ..., an],
-                "type": "max|min"
+                "type": "max"|"min"
             }},
             "restricciones": [
                 {{
@@ -214,44 +264,93 @@ class App(ctk.CTk):
             ]
         }}
         
-        Considera que:
-        - Variables son x1, x2, ..., xn
-        - Inecuaciones pueden estar en cualquier orden
-        - Ignora restricciones redundantes
-        - Ignora restricciones en las que todos los coeficientes sean cero
-        - Verifica cada restriccion antes de enviar la respuesta
+        Reglas CRÍTICAS:
+        1. Variables deben ser x1, x2,... xn en orden
+        2. Convertir todas las inecuaciones a forma estándar:
+        - Expresiones con <= permanecen igual
+        - Expresiones con >= se invierte la desigualdad multiplicando por -1
+        3. Eliminar restricciones redundantes o inválidas
+        4. Ignorar restricciones con todos los coeficientes en 0
+        5. Normalizar tipo de objetivo: "max" o "min"
+        6. Coeficientes deben ser numéricos (incluyendo negativos)
         
-        Problema:
+        Ejemplos válidos:
+        * "3x + 2y ≤ 10" -> {{"a": [3,2], "c":10, "inecuacion": "<="}}
+        * "x1 - 4x2 ≥ 5" -> {{"a": [1,-4], "c":5, "inecuacion": ">="}}
+        
+        Problema a analizar:
         {texto}
+        
+        Devuelve SOLO el JSON válido sin comentarios.
         """
         
         try:
             model = genai.GenerativeModel('gemini-1.5-pro')
             response = model.generate_content(prompt)
             
-            json_str = response.text.replace('```json', '').replace('```', '').strip()
-            return json.loads(json_str)
+            # Extraer JSON de la respuesta
+            json_str = response.text
+            json_str = json_str[json_str.find('{'):json_str.rfind('}')+1]
+            json_str = json_str.replace('`', '')
+            
+            datos = json.loads(json_str)
+            
+            # Validar estructura
+            if not self.validar_respuesta_ia(datos):
+                raise ValueError("Estructura JSON inválida")
+                
+            return datos
             
         except Exception as e:
             raise ValueError(f"Error en Gemini: {str(e)}")
+
+    def validar_respuesta_ia(self, datos):
+        required_keys = {'objetivo', 'restricciones'}
+        if not required_keys.issubset(datos.keys()):
+            return False
+        
+        obj = datos['objetivo']
+        if 'coeff' not in obj or 'type' not in obj:
+            return False
+        if obj['type'] not in ('max', 'min'):
+            return False
+        
+        for r in datos['restricciones']:
+            if 'a' not in r or 'c' not in r or 'inecuacion' not in r:
+                return False
+            if r['inecuacion'] not in ('<=', '>='):
+                return False
+                
+        return True
     
     def actualizar_datos_interfaz(self, datos):
-        self.entry_n_variables.delete(0, tk.END)
-        self.entry_n_variables.insert(0, str(len(datos.get("objetivo", {}).get("coeff", []))))
-        self.establecer_n_variables()
-        
-        objetivo = datos.get("objetivo", {})
-        for i, coeff in enumerate(objetivo.get("coeff", [])):
-            self.entries_obj[i].delete(0, tk.END)
-            self.entries_obj[i].insert(0, str(coeff))
-        self.var_obj_type.set(objetivo.get("type", "max"))
-        
-        while self.filas_restricciones:
-            self.remover_fila_restriccion()
-        
-        for restriccion in datos.get("restricciones", []):
-            self.añadir_fila_restriccion(default=restriccion)
-        
+        try:
+            # Actualizar número de variables basado en los coeficientes del objetivo
+            n_vars = len(datos["objetivo"]["coeff"])
+            self.entry_n_variables.delete(0, tk.END)
+            self.entry_n_variables.insert(0, str(n_vars))
+            self.establecer_n_variables()
+            
+            # Actualizar función objetivo
+            objetivo = datos["objetivo"]
+            for i in range(n_vars):
+                self.entries_obj[i].delete(0, tk.END)
+                self.entries_obj[i].insert(0, str(objetivo["coeff"][i]))
+            self.var_obj_type.set(objetivo["type"])
+            
+            # Limpiar restricciones existentes
+            while self.filas_restricciones:
+                self.remover_fila_restriccion()
+            
+            # Añadir nuevas restricciones con validación
+            for r in datos["restricciones"]:
+                if len(r["a"]) != n_vars:
+                    continue  # Ignorar restricciones incompatibles
+                self.añadir_fila_restriccion(default=r)
+                
+        except Exception as e:
+            raise ValueError(f"Error actualizando interfaz: {str(e)}")
+
     def añadir_fila_restriccion(self, default=None):
         if not hasattr(self, 'n_variables') or self.n_variables == 0:
             self.text_output.insert(tk.END, "Error: Establece el número de variables primero.\n")
@@ -290,10 +389,10 @@ class App(ctk.CTk):
             restricciones.append(restriccion)
         
         # Resolver el problema usando el método simplex
-        resultado, mensaje, puntos_factibles = resolver_optimizacion(objetivo, restricciones)
+        resultado, mensaje, puntos_factibles, tablas_simplex = resolver_optimizacion(objetivo, restricciones)
         self.text_output.insert(tk.END, mensaje + "\n")
         
         if resultado is None:
             return
-        
+        print(tablas_simplex)
         dibujar_grafico(restricciones, puntos_factibles, resultado['punto_optimo'], self.frame_right)

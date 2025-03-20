@@ -92,13 +92,16 @@ def es_optimo(tabla):
 def resolver_simplex(objetivo, restricciones):
     """
     Resuelve el problema usando el método simplex.
+    Devuelve la solución óptima, el valor óptimo y las tablas intermedias.
     """
     tabla = inicializar_tabla_simplex(objetivo, restricciones)
+    tablas_intermedias = [tabla.copy()]  # Guardar la tabla inicial
     
     while not es_optimo(tabla):
         col_pivote = encontrar_columna_pivote(tabla)
         fila_pivote = encontrar_fila_pivote(tabla, col_pivote)
         actualizar_tabla(tabla, fila_pivote, col_pivote)
+        tablas_intermedias.append(tabla.copy())  # Guardar la tabla actualizada
     
     # Extraer solución óptima
     n_variables = len(objetivo['coeff'])
@@ -116,15 +119,15 @@ def resolver_simplex(objetivo, restricciones):
     solucion = [float(round(x, 2)) for x in solucion]  # Redondear a 2 decimales
     valor_optimo = float(round(valor_optimo, 2))  # Redondear a 2 decimales
     
-    return solucion, valor_optimo
+    return solucion, valor_optimo, tablas_intermedias
 
 def resolver_optimizacion(objetivo, restricciones):
     """
-    Resuelve el problema y devuelve la solución óptima, valor óptimo y puntos factibles.
+    Resuelve el problema y devuelve la solución óptima, valor óptimo, puntos factibles y tablas intermedias.
     """
     try:
         # Resolver usando simplex
-        solucion, valor_optimo = resolver_simplex(objetivo, restricciones)
+        solucion, valor_optimo, tablas_simplex = resolver_simplex(objetivo, restricciones)
         
         # Verificar si la solución es un vector de ceros
         if all(abs(x) < 1e-9 for x in solucion):
@@ -167,7 +170,7 @@ def resolver_optimizacion(objetivo, restricciones):
         else:
             mensaje = "No se encontró una solución óptima válida."
         
-        return {'punto_optimo': solucion, 'valor_optimo': valor_optimo}, mensaje, puntos_factibles
+        return {'punto_optimo': solucion, 'valor_optimo': valor_optimo}, mensaje, puntos_factibles, tablas_simplex
     
     except Exception as e:
-        return None, f"Error: {str(e)}", []
+        return None, f"Error: {str(e)}", [], []
